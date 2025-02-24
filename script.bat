@@ -7,9 +7,11 @@ setlocal enabledelayedexpansion
 cd /d "%~dp0"
 set "root_dir=%cd%"
 set "logging=OFF"
+set "folder_name=01 Foto's"
 
 echo Current Directory: %cd%
 echo Default root directory set to: %root_dir%
+echo Default folder name set to: %folder_name%
 echo Checking if ExifTool exists in the current directory...
 
 :: ===========================================
@@ -32,15 +34,17 @@ echo             IMAGE RENAMER AND DATE ADJUSTER
 echo ===================================================
 echo 1. Set Root Folder (Current: %root_dir%)
 echo 2. Toggle Logging (Current: %logging%)
-echo 3. Start Processing
-echo 4. Exit
+echo 3. Set Photos Folder Name (Current: %folder_name%)
+echo 4. Start Processing
+echo 5. Exit
 echo ===================================================
-set /p choice="Choose an option [1-4]: "
+set /p choice="Choose an option [1-5]: "
 
 if "%choice%"=="1" goto :set_root
 if "%choice%"=="2" goto :toggle_logging
-if "%choice%"=="3" goto :start_processing
-if "%choice%"=="4" exit
+if "%choice%"=="3" goto :set_folder_name
+if "%choice%"=="4" goto :start_processing
+if "%choice%"=="5" exit
 goto :main_menu
 
 :: ===========================================
@@ -73,6 +77,18 @@ echo Logging is now %logging%.
 goto :main_menu
 
 :: ===========================================
+:: SET FOLDER NAME
+:: ===========================================
+:set_folder_name
+cls
+echo ===================================================
+echo               SET FOLDER NAME
+echo ===================================================
+set /p folder_name="Enter folder name (current: %folder_name%): "
+echo Folder name set to: %folder_name%
+goto :main_menu
+
+:: ===========================================
 :: PROCESSING IMAGES
 :: ===========================================
 :start_processing
@@ -82,31 +98,30 @@ echo           PROCESSING STARTED - PLEASE WAIT
 echo ===================================================
 
 for /r "%root_dir%" %%F in (.) do (
-    if exist "%%F\\01 Foto's" (
-        if "%logging%"=="ON" echo Folder "01 Foto's" found in: %%F
+    if exist "%%F\\%folder_name%" (
+        if "%logging%"=="ON" echo Folder "%folder_name%" found in: %%F
 
-        (for %%I in ("%%F\\01 Foto's\\IMG_*.JPG") do (
+        (for %%I in ("%%F\\%folder_name%\\IMG_*.JPG") do (
             set "file=%%~nxI"
             set "fileCode=!file:~4,4!"
             echo !fileCode!
-        )) > "%%F\\01 Foto's\\sorted_list.txt"
+        )) > "%%F\\%folder_name%\\sorted_list.txt"
 
-
-        sort "%%F\\01 Foto's\\sorted_list.txt" /o "%%F\\01 Foto's\\sorted_list.txt"
+        sort "%%F\\%folder_name%\\sorted_list.txt" /o "%%F\\%folder_name%\\sorted_list.txt"
 
         set "start_code="
         set "new_create_datetime="
         set "new_modify_datetime="
         set /a seconds_offset=0
 
-        for /f "usebackq tokens=1" %%C in ("%%F\\01 Foto's\\sorted_list.txt") do (
+        for /f "usebackq tokens=1" %%C in ("%%F\\%folder_name%\\sorted_list.txt") do (
             if not defined start_code set /a start_code=%%C
         )
 
         if "%logging%"=="ON" echo [INFO] Starting code for folder: !start_code!
 
-        for /f "usebackq tokens=*" %%C in ("%%F\\01 Foto's\\sorted_list.txt") do (
-            set "image_file=%%F\\01 Foto's\\IMG_%%C.JPG"
+        for /f "usebackq tokens=*" %%C in ("%%F\\%folder_name%\\sorted_list.txt") do (
+            set "image_file=%%F\\%folder_name%\\IMG_%%C.JPG"
             if "%logging%"=="ON" echo [INFO] Processing file: !image_file!
 
             :: Check if the file exists before processing
@@ -206,7 +221,7 @@ for /r "%root_dir%" %%F in (.) do (
 
                 :: Renaming images
                 set "old_name=!image_file!"
-                set "new_name=%%F\\01 Foto's\\TEMP_!start_code!.JPG"
+                set "new_name=%%F\\%folder_name%\\TEMP_!start_code!.JPG"
                 if "%logging%"=="ON" echo [INFO] Renaming "!old_name!" to "!new_name!"...
                 ren "!old_name!" "TEMP_!start_code!.JPG"
                 set /a start_code+=1
@@ -215,16 +230,16 @@ for /r "%root_dir%" %%F in (.) do (
             )
         )
 
-        for %%I in ("%%F\\01 Foto's\\TEMP_*") do (
+        for %%I in ("%%F\\%folder_name%\\TEMP_*") do (
             set "file_name=%%~nxI"
-            set "old_name=%%F\\01 Foto's\\!file_name!"
+            set "old_name=%%F\\%folder_name%\\!file_name!"
             set "new_name=IMG_!file_name:~5!"
 
             if "%logging%"=="ON" echo [INFO] Renaming "!old_name!" to "!new_name!"...
             ren "!old_name!" "!new_name!"
         )
 
-        del "%%F\\01 Foto's\\sorted_list.txt"
+        del "%%F\\%folder_name%\\sorted_list.txt"
         if "%logging%"=="ON" echo [INFO] Finished processing folder: %%F
     )
 )
@@ -232,7 +247,7 @@ for /r "%root_dir%" %%F in (.) do (
 echo ===================================================
 echo                 PROCESSING COMPLETE
 echo ===================================================
-echo All '01 Foto's' folders processed successfully, using the correct lowest image code per folder.
+echo All '%folder_name%' folders processed successfully, using the correct lowest image code per folder.
 echo FileCreateDate adjusted starting from the first image datetime with incremental random seconds.
 echo FileModifyDate adjusted starting from the first image datetime with incremental random seconds.
 echo ---------------------------------------------------

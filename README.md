@@ -6,12 +6,13 @@ This batch script automates the process of renaming image files and adjusting th
 
 ## 🚀 Features
 
-- 🔄 Renames images to a consistent format: `IMG_<counter>.jpg`.
+- 🔄 Renames images to a consistent and consecutive format: `IMG_<counter>.jpg`.
 - ⏰ Adjusts `FileCreateDate` and `FileModifyDate` metadata with random offsets (30–60 seconds).
-- 🔍 Recursively scans all `01 Foto's` subfolders within the specified root directory.
+- 🔍 Recursively scans for all photos folders of a specfic name within a specified root directory.
 - 🖱️ Interactive menu to:
   - Set the root directory.
   - Toggle logging to monitor the script’s actions.
+  - Set the name of the desired photos folder.
   - Start processing images.
   - Exit the script.
 - 💡 Uses ExifTool locally (no installation required if provided with the script).
@@ -27,15 +28,15 @@ root_folder
 ├── subfolder_1
 │   └── ...
 │       └── subfolder_1_X
-│           └── 01 Foto's
+│           └── Photos folder
 │               ├── IMG_1001.jpg
-│               ├── IMG_1003.jpg
+│               └── IMG_1003.jpg
 └── subfolder_2
     └── ...
         └── subfolder_2_X
-            └── 01 Foto's
+            └── Photos folder
                 ├── IMG_1002.jpg
-                ├── IMG_1005.jpg
+                └── IMG_1005.jpg
 
 ```
 
