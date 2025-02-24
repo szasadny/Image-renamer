@@ -6,7 +6,7 @@ setlocal enabledelayedexpansion
 :: ===========================================
 cd /d "%~dp0"
 set "root_dir=%cd%"
-set /a global_counter=1000
+set "logging=OFF"
 
 echo Current Directory: %cd%
 echo Default root directory set to: %root_dir%
@@ -15,7 +15,7 @@ echo Checking if ExifTool exists in the current directory...
 :: ===========================================
 :: EXIFTOOLS SETUP
 :: ===========================================
-if not exist "%cd%\exiftool.exe" (
+if not exist "%cd%\\exiftool.exe" (
     echo ExifTool is not found in the current directory: %cd%
     echo Please make sure exiftool.exe and exiftool_files folder are located in the same folder as this script.
     pause
@@ -28,17 +28,17 @@ if not exist "%cd%\exiftool.exe" (
 :main_menu
 cls
 echo ===================================================
-echo             IMAGE RENAMER AND ^DATE^ ADJUSTER
+echo             IMAGE RENAMER AND DATE ADJUSTER
 echo ===================================================
 echo 1. Set Root Folder (Current: %root_dir%)
-echo 2. Set Starting Global Counter (Current: !global_counter!)
+echo 2. Toggle Logging (Current: %logging%)
 echo 3. Start Processing
 echo 4. Exit
 echo ===================================================
 set /p choice="Choose an option [1-4]: "
 
 if "%choice%"=="1" goto :set_root
-if "%choice%"=="2" goto :set_counter
+if "%choice%"=="2" goto :toggle_logging
 if "%choice%"=="3" goto :start_processing
 if "%choice%"=="4" exit
 goto :main_menu
@@ -58,22 +58,19 @@ if not exist "%root_dir%" (
     goto :set_root
 )
 echo Root directory set to: %root_dir%
-pause
 goto :main_menu
 
 :: ===========================================
-:: SET GLOBAL COUNTER
+:: TOGGLE LOGGING
 :: ===========================================
-:set_counter
-cls
-echo ===================================================
-echo           SET STARTING GLOBAL COUNTER
-echo ===================================================
-set /p global_counter="Enter starting number for global counter: "
-echo Global counter set to: !global_counter!
-pause
+:toggle_logging
+if "%logging%"=="ON" (
+    set "logging=OFF"
+) else (
+    set "logging=ON"
+)
+echo Logging is now %logging%.
 goto :main_menu
-
 
 :: ===========================================
 :: PROCESSING IMAGES
@@ -82,82 +79,163 @@ goto :main_menu
 cls
 echo ===================================================
 echo           PROCESSING STARTED - PLEASE WAIT
-
 echo ===================================================
 
-for /d %%F in ("%root_dir%\*") do (
-    echo Checking folder: %%F
-    if exist "%%F\0.1 Fotos" (
-        echo Folder "0.1 Fotos" found in: %%F
-        dir "%%F\0.1 Fotos" /b
+for /r "%root_dir%" %%F in (.) do (
+    if exist "%%F\\01 Foto's" (
+        if "%logging%"=="ON" echo Folder "01 Foto's" found in: %%F
 
-        :: Process all files in "0.1 Fotos"
-        for %%I in ("%%F\0.1 Fotos\*.*") do (
-            echo Found file: %%~nxI
-            if /i "%%~xI"==".jpg" (
-                set "file=%%~nxI"
-                set "fileCode=!file:~4,4!"
-                echo !fileCode! %%~nxI >> "%%F\0.1 Fotos\sorted_list.txt"
+        (for %%I in ("%%F\\01 Foto's\\IMG_*.JPG") do (
+            set "file=%%~nxI"
+            set "fileCode=!file:~4,4!"
+            echo !fileCode!
+        )) > "%%F\\01 Foto's\\sorted_list.txt"
+
+
+        sort "%%F\\01 Foto's\\sorted_list.txt" /o "%%F\\01 Foto's\\sorted_list.txt"
+
+        set "start_code="
+        set "new_create_datetime="
+        set "new_modify_datetime="
+        set /a seconds_offset=0
+
+        for /f "usebackq tokens=1" %%C in ("%%F\\01 Foto's\\sorted_list.txt") do (
+            if not defined start_code set /a start_code=%%C
+        )
+
+        if "%logging%"=="ON" echo [INFO] Starting code for folder: !start_code!
+
+        for /f "usebackq tokens=*" %%C in ("%%F\\01 Foto's\\sorted_list.txt") do (
+            set "image_file=%%F\\01 Foto's\\IMG_%%C.JPG"
+            if "%logging%"=="ON" echo [INFO] Processing file: !image_file!
+
+            :: Check if the file exists before processing
+            if exist "!image_file!" (
+                if not defined new_create_datetime (
+                    :: Extract FileCreateDate for the first image
+                    for /f "delims=" %%a in ('exiftool -s -s -s -FileCreateDate "!image_file!"') do (
+                        if "%logging%"=="ON" echo [INFO] Extracted Created Datetime Value: %%a
+                        set "new_create_datetime=%%a"
+                    )
+                    for /f "delims=" %%a in ('exiftool -s -s -s -FileModifyDate "!image_file!"') do (
+                        if "%logging%"=="ON" echo [INFO] Extracted Modfied Datetime Value: %%a
+                        set "new_modify_datetime=%%a"
+                    )
+
+                ) else (
+                    :: Generate random offset (30-60 seconds)
+                    set /a rand=%random% %% 31 + 30
+                    set /a seconds_offset+=!rand!
+
+                    if "%logging%"=="ON" echo [INFO] Adjusting create datetime for image: %%C by !seconds_offset! seconds...
+
+                    :: Convert current datetime for FileCreateDate and adjust seconds
+                    for /f "tokens=1,2 delims= " %%b in ("!new_create_datetime!") do (
+                        set "date_part_create=%%b"
+                        set "time_part_create=%%c"
+                    )
+                    
+                    :: Extract hours, minutes, seconds from time_part_create
+                    for /f "tokens=1,2,3 delims=:." %%d in ("!time_part_create!") do (
+                        set "hour_create=%%d"
+                        set "minute_create=%%e"
+                        set /a second_create=%%f + !seconds_offset!
+                    )
+
+                    :: Adjust seconds overflow (if seconds exceed 60) for FileCreateDate
+                    if !second_create! geq 60 (
+                        set /a second_create-=60
+                        set /a minute_create+=1
+                    )
+                    if !minute_create! geq 60 (
+                        set /a minute_create-=60
+                        set /a hour_create+=1
+                    )
+                    if !hour_create! geq 24 (
+                        set /a hour_create-=24
+                        set /a day_create+=1
+                    )
+
+                    :: Rebuild new time string for FileCreateDate
+                    set "new_time_create=!hour_create!:!minute_create!:!second_create!"
+                    set "new_create_datetime=!date_part_create! !new_time_create!"
+
+                    if "%logging%"=="ON" echo [INFO] New FileCreateDate: !new_create_datetime!
+
+                    :: Apply the new datetime to FileCreateDate
+                    exiftool -FileCreateDate="!new_create_datetime!" "!image_file!" -overwrite_original >nul
+
+                    if "%logging%"=="ON" echo [INFO] Adjusting modifty datetime for image: %%C by !seconds_offset! seconds...
+
+                    :: Convert current datetime for FileModifyDate and adjust seconds
+                    for /f "tokens=1,2 delims= " %%b in ("!new_modify_datetime!") do (
+                        set "date_part_modify=%%b"
+                        set "time_part_modify=%%c"
+                    )
+                    
+                    :: Extract hours, minutes, seconds from time_part_modify
+                    for /f "tokens=1,2,3 delims=:." %%d in ("!time_part_modify!") do (
+                        set "hour_modify=%%d"
+                        set "minute_modify=%%e"
+                        set /a second_modify=%%f + !seconds_offset!
+                    )
+
+                    :: Adjust seconds overflow (if seconds exceed 60) for FileModifyDate
+                    if !second_modify! geq 60 (
+                        set /a second_modify-=60
+                        set /a minute_modify+=1
+                    )
+                    if !minute_modify! geq 60 (
+                        set /a minute_modify-=60
+                        set /a hour_modify+=1
+                    )
+                    if !hour_modify! geq 24 (
+                        set /a hour_modify-=24
+                        set /a day_modify+=1
+                    )
+
+                    :: Rebuild new time string for FileModifyDate
+                    set "new_time_modify=!hour_modify!:!minute_modify!:!second_modify!"
+                    set "new_modify_datetime=!date_part_modify! !new_time_modify!"
+
+                    if "%logging%"=="ON" echo [INFO] New FileModifyDate: !new_modify_datetime!
+
+                    :: Apply the new datetime to FileModifyDate
+                    exiftool -FileModifyDate="!new_modify_datetime!" "!image_file!" -overwrite_original >nul
+                )
+
+                :: Renaming images
+                set "old_name=!image_file!"
+                set "new_name=%%F\\01 Foto's\\TEMP_!start_code!.JPG"
+                if "%logging%"=="ON" echo [INFO] Renaming "!old_name!" to "!new_name!"...
+                ren "!old_name!" "TEMP_!start_code!.JPG"
+                set /a start_code+=1
+            ) else (
+                if "%logging%"=="ON" echo [ERROR] File not found: !image_file!
             )
         )
 
-        :: Sort the filenames
-        sort "%%F\0.1 Fotos\sorted_list.txt" /o "%%F\0.1 Fotos\sorted_list.txt"
-        echo [INFO] Sorted list of images:
-        type "%%F\0.1 Fotos\sorted_list.txt"
-
-        set /a seconds_offset=0
-        :: First rename from IMG_ to TEMP_ with correct count
-        for /f "usebackq tokens=2" %%J in ("%%F\0.1 Fotos\sorted_list.txt") do (
-            set "old_name=%%F\0.1 Fotos\%%J"
-            set "temp_name=%%F\0.1 Fotos\TEMP_!global_counter!.JPG"
-
-            echo [PROCESSING] Renaming "!old_name!" to "!temp_name!"...
-            ren "!old_name!" "TEMP_!global_counter!.JPG" && echo [OK] Renamed successfully || echo [X] Rename failed
-
-            set /a rand=%random% %% 26 + 5
-            set /a seconds_offset+=!rand!
-
-            echo [PROCESSING] Adjusting DateTimeOriginal by !seconds_offset! seconds...
-            .\exiftool "-DateTimeOriginal+=0:0:0 0:0:!seconds_offset!" "!temp_name!" -overwrite_original >nul && echo [OK] Timestamp adjusted || echo [X] Timestamp adjustment failed
-
-            set /a global_counter+=1
-        )
-
-        :: Second rename from TEMP_ to IMG_
-        for %%I in ("%%F\0.1 Fotos\TEMP_*") do (
+        for %%I in ("%%F\\01 Foto's\\TEMP_*") do (
             set "file_name=%%~nxI"
-            set "old_name=%%F\0.1 Fotos\!file_name!"
+            set "old_name=%%F\\01 Foto's\\!file_name!"
             set "new_name=IMG_!file_name:~5!"
 
-            echo [DEBUG] Checking file: %%~nxI
-            echo [DEBUG] old_name: !old_name! new_name: !new_name!
-
-            if exist "!old_name!" (
-                echo [PROCESSING] Renaming "!old_name!" to "!new_name!"...
-                ren "!old_name!" "!new_name!" && echo [OK] Renamed successfully || echo [X] Rename failed
-            ) else (
-                echo [ERROR] File "!old_name!" does not exist
-            )
+            if "%logging%"=="ON" echo [INFO] Renaming "!old_name!" to "!new_name!"...
+            ren "!old_name!" "!new_name!"
         )
 
-        del "%%F\0.1 Fotos\sorted_list.txt"
-        echo [INFO] Finished processing folder: %%F
-        echo ---------------------------------------------------
+        del "%%F\\01 Foto's\\sorted_list.txt"
+        if "%logging%"=="ON" echo [INFO] Finished processing folder: %%F
     )
 )
 
-:: ===========================================
-:: FINAL SUMMARY SCREEN (Logs Persist)
-:: ===========================================
 echo ===================================================
-echo                 PROCESSING COMPLETE 
+echo                 PROCESSING COMPLETE
 echo ===================================================
-echo All '0.1 Fotos' folders processed successfully.
-echo No duplicate image codes or numbering gaps found.
-echo DateTimeOriginal adjusted with random 5-30s increments.
+echo All '01 Foto's' folders processed successfully, using the correct lowest image code per folder.
+echo FileCreateDate adjusted starting from the first image datetime with incremental random seconds.
+echo FileModifyDate adjusted starting from the first image datetime with incremental random seconds.
 echo ---------------------------------------------------
-echo [INFO] Processing logs above remain visible for review.
 echo [INFO] Press any key to return to the main menu.
 
 pause
