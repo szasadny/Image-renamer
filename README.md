@@ -21,13 +21,17 @@ This batch script automates the process of renaming image files and adjusting th
 
 This script is specficically made for the following folder structure:
 
+```
 root_folder
-│ ├── exiftool.exe ├── exiftool_files
-│ ├── adres 1
-│ └── 0.1 Fotos
-│ ├── image1.jpg │ └── image2.jpg │ └── adres 2
-└── 0.1 Fotos
-├── image3.jpg └── image4.jpg
+├── adres 1
+  └── 0.1 Fotos
+      ├── image1.jpg
+      ├── image2.jpg
+└── adres 2
+  └── 0.1 Fotos
+      ├── image3.jpg
+      └── image4.jpg
+```
 
 ---
 
